@@ -20,7 +20,7 @@ def parse_sqft(raw):
     raw = raw.strip().replace(",", "")
     return float(raw)
 
-# --- Calculation logic ---
+# --- Computation ---
 def compute(opt):
     rate = parse_currency(opt['rate'])
     sf   = parse_sqft(opt['sqft'])
@@ -28,15 +28,9 @@ def compute(opt):
     free = parse_int(opt['free'])
     ti   = parse_currency(opt['ti'], allow_blank=True)
 
-    opex = 0.0
-    if opt['service'] == 'NNN':
-        opex = parse_currency(opt['opex'], allow_blank=True)
-
-    # escalations
+    opex = parse_currency(opt['opex'], allow_blank=True) if opt['service']=="NNN" else 0.0
     btype, bamt = opt['base_esc_type'], parse_currency(opt['base_esc_amt'], allow_blank=True)
-    otype, oamt = opt.get('opex_esc_type','None'), parse_currency(opt.get('opex_esc_amt',''), allow_blank=True)
-
-    # commission
+    otype, oamt = opt.get('opex_esc_type',"None"), parse_currency(opt.get('opex_esc_amt',""), allow_blank=True)
     ctype, camt = opt['comm_type'], parse_currency(opt['comm_amt'], allow_blank=True)
 
     years = term // 12
@@ -44,39 +38,38 @@ def compute(opt):
     rows = []
     for y in range(1, years+1):
         if y>1:
-            if btype=='Percentage': rate_y *= (1 + bamt/100)
-            elif btype=='Dollar':    rate_y += bamt
+            if btype=="Percentage": rate_y *= (1 + bamt/100)
+            elif btype=="Dollar":    rate_y += bamt
             if opex>0:
-                if otype=='Percentage': opex_y *= (1 + oamt/100)
-                elif otype=='Dollar':    opex_y += oamt
-
-        annual = (rate_y+opex_y)*sf
+                if otype=="Percentage": opex_y *= (1 + oamt/100)
+                elif otype=="Dollar":    opex_y += oamt
+        annual = (rate_y + opex_y) * sf
         monthly= annual/12
-        row = {
-            'Year':      y,
-            'Rate/SF':   f"{rate_y:.2f}",
-            'Monthly':   f"{monthly:,.2f}",
-            'Annual':    f"{annual:,.2f}",
+        entry = {
+            "Year":     y,
+            "Rate/SF":  f"{rate_y:.2f}",
+            "Monthly":  f"{monthly:,.2f}",
+            "Annual":   f"{annual:,.2f}",
         }
         if opex>0:
-            row['NNN/SF'] = f"{opex_y:.2f}"
-        rows.append(row)
+            entry["NNN/SF"] = f"{opex_y:.2f}"
+        rows.append(entry)
 
     df = pd.DataFrame(rows)
 
-    total_rent    = sum(float(r['Annual'].replace(',','')) for r in rows)
-    first_monthly = float(rows[0]['Monthly'].replace(',','')) if rows else 0
+    total_rent    = sum(float(r["Annual"].replace(",","")) for r in rows)
+    first_monthly = float(rows[0]["Monthly"].replace(",","")) if rows else 0
     free_disc     = first_monthly * free
     ti_disc       = ti * sf
     total_disc    = free_disc + ti_disc
     net_total     = total_rent - total_disc
 
-    base_sum = sum(float(r['Rate/SF'])*sf for r in rows)
-    if ctype=='Dollar':
+    base_sum = sum(float(r["Rate/SF"])*sf for r in rows)
+    if ctype=="Dollar":
         comm_value   = camt * sf * years
         comm_formula = f"{camt} * {sf} * {years} = {comm_value:,.0f}"
-    elif ctype=='Percentage':
-        comm_value   = (camt/100)*base_sum
+    elif ctype=="Percentage":
+        comm_value   = (camt/100) * base_sum
         comm_formula = f"{camt}% * {base_sum:,.0f} = {comm_value:,.0f}"
     else:
         comm_value, comm_formula = 0.0, ""
@@ -86,22 +79,21 @@ def compute(opt):
     ner_psf   = ner_year/sf
 
     results = {
-        'Total Rent Term':           (f"${total_rent:,.0f}", " + ".join(r['Annual'] for r in rows)+f" = {total_rent:,.0f}"),
-        'Free Rent Discount':        (f"${free_disc:,.0f}", f"{first_monthly:,.0f} * {free} = {free_disc:,.0f}"),
-        'TI Discount':               (f"${ti_disc:,.0f}", f"{ti:.2f} * {sf:,.0f} = {ti_disc:,.0f}"),
-        'Total Discount':            (f"${total_disc:,.0f}", f"{free_disc:,.0f} + {ti_disc:,.0f} = {total_disc:,.0f}"),
-        'Net Total After Discounts': (f"${net_total:,.0f}", f"{total_rent:,.0f} - {total_disc:,.0f} = {net_total:,.0f}"),
-        'Leasing Commission':        (f"${comm_value:,.0f}", comm_formula),
-        'NER per Year':              (f"${ner_year:,.2f}", f"{net_total:,.0f} / {years} = {ner_year:.2f}"),
-        'NER per Month':             (f"${ner_month:,.2f}", f"{ner_year:.2f} / 12 = {ner_month:.2f}"),
-        'NER per SF per Year':       (f"${ner_psf:,.2f}", f"{ner_year:.2f} / {sf:,.0f} = {ner_psf:.2f}"),
+        "Total Rent Term":           (f"${total_rent:,.0f}", " + ".join(r["Annual"] for r in rows)+f" = {total_rent:,.0f}"),
+        "Free Rent Discount":        (f"${free_disc:,.0f}", f"{first_monthly:,.0f} * {free} = {free_disc:,.0f}"),
+        "TI Discount":               (f"${ti_disc:,.0f}", f"{ti:.2f} * {sf:,.0f} = {ti_disc:,.0f}"),
+        "Total Discount":            (f"${total_disc:,.0f}", f"{free_disc:,.0f} + {ti_disc:,.0f} = {total_disc:,.0f}"),
+        "Net Total After Discounts": (f"${net_total:,.0f}", f"{total_rent:,.0f} - {total_disc:,.0f} = {net_total:,.0f}"),
+        "Leasing Commission":        (f"${comm_value:,.0f}", comm_formula),
+        "NER per Year":              (f"${ner_year:,.2f}", f"{net_total:,.0f} / {years} = {ner_year:.2f}"),
+        "NER per Month":             (f"${ner_month:,.2f}", f"{ner_year:.2f} / 12 = {ner_month:.2f}"),
+        "NER per SF per Year":       (f"${ner_psf:,.2f}", f"{ner_year:.2f} / {sf:,.0f} = {ner_psf:.2f}"),
     }
     return df, results
 
-# --- Streamlit App ---
+# --- Streamlit Setup ---
 st.set_page_config(layout="wide")
 
-# default template for a blank option
 DEFAULT = {
     'service':'Full Service','opex':'','opex_esc_type':'None','opex_esc_amt':'',
     'base_esc_type':'None','base_esc_amt':'',
@@ -117,7 +109,7 @@ def new_option(data=None):
     if len(st.session_state.options) < 5:
         entry = DEFAULT.copy() if data is None else data.copy()
         st.session_state.options.append(entry)
-        st.session_state.active = len(st.session_state.options) - 1
+        st.session_state.active = len(st.session_state.options)-1
 
 def delete_option():
     if len(st.session_state.options) > 1:
@@ -142,49 +134,54 @@ with c3:
         delete_option()
 
 # Tabs
-tabs = st.tabs([f"Option {i+1}" for i in st.session_state.options])
+tabs = st.tabs([f"Option {idx+1}" for idx in range(len(st.session_state.options))])
 for i, tab in enumerate(tabs):
     with tab:
         st.session_state.active = i
         opt = st.session_state.options[i]
 
         # inputs (unique keys)
-        opt['service']        = st.selectbox("Service Type",
-                                             ["Full Service","NNN"],
-                                             index=["Full Service","NNN"].index(opt['service']),
-                                             key=f"service_{i}")
+        opt['service'] = st.selectbox(
+            "Service Type", ["Full Service","NNN"],
+            index=["Full Service","NNN"].index(opt['service']),
+            key=f"service_{i}"
+        )
         if opt['service']=="NNN":
-            opt['opex']        = st.text_input("OPEX/SF (optional)", opt['opex'], key=f"opex_{i}")
-            opt['opex_esc_type']= st.selectbox("OPEX Esc Type",
-                                               ["None","Percentage","Dollar"],
-                                               index=["None","Percentage","Dollar"].index(opt['opex_esc_type']),
-                                               key=f"opex_esc_type_{i}")
-            opt['opex_esc_amt']= st.text_input("OPEX Esc Amt", opt['opex_esc_amt'], key=f"opex_esc_amt_{i}")
-        opt['base_esc_type']  = st.selectbox("Base Esc Type",
-                                             ["None","Percentage","Dollar"],
-                                             index=["None","Percentage","Dollar"].index(opt['base_esc_type']),
-                                             key=f"base_esc_type_{i}")
-        opt['base_esc_amt']   = st.text_input("Base Esc Amt", opt['base_esc_amt'], key=f"base_esc_amt_{i}")
-        opt['rate']           = st.text_input("Base Rate/SF/year", opt['rate'], key=f"rate_{i}")
-        opt['sqft']           = st.text_input("Square Feet", opt['sqft'], key=f"sqft_{i}")
-        opt['term']           = st.text_input("Term in Months", opt['term'], key=f"term_{i}")
-        opt['free']           = st.text_input("Free Rent Months", opt['free'], key=f"free_{i}")
-        total_term_val        = parse_int(opt['term']) + parse_int(opt['free'])
+            opt['opex']           = st.text_input("OPEX/SF (optional)", opt['opex'], key=f"opex_{i}")
+            opt['opex_esc_type']  = st.selectbox(
+                "OPEX Esc Type", ["None","Percentage","Dollar"],
+                index=["None","Percentage","Dollar"].index(opt['opex_esc_type']),
+                key=f"opex_esc_type_{i}"
+            )
+            opt['opex_esc_amt']   = st.text_input("OPEX Esc Amt", opt['opex_esc_amt'], key=f"opex_esc_amt_{i}")
+        opt['base_esc_type']     = st.selectbox(
+            "Base Esc Type", ["None","Percentage","Dollar"],
+            index=["None","Percentage","Dollar"].index(opt['base_esc_type']),
+            key=f"base_esc_type_{i}"
+        )
+        opt['base_esc_amt']      = st.text_input("Base Esc Amt", opt['base_esc_amt'], key=f"base_esc_amt_{i}")
+        opt['rate']              = st.text_input("Base Rate/SF/year", opt['rate'], key=f"rate_{i}")
+        opt['sqft']              = st.text_input("Square Feet", opt['sqft'], key=f"sqft_{i}")
+        opt['term']              = st.text_input("Term in Months", opt['term'], key=f"term_{i}")
+        opt['free']              = st.text_input("Free Rent Months", opt['free'], key=f"free_{i}")
+        total_term_val           = parse_int(opt['term']) + parse_int(opt['free'])
         st.text_input("Total Term (auto)", str(total_term_val), disabled=True, key=f"total_{i}")
-        opt['ti']             = st.text_input("TI Allowance/SF (opt)", opt['ti'], key=f"ti_{i}")
-        opt['comm_type']      = st.selectbox("Commission Type (opt)",
-                                              ["None","Percentage","Dollar"],
-                                              index=["None","Percentage","Dollar"].index(opt['comm_type']),
-                                              key=f"comm_type_{i}")
-        opt['comm_amt']       = st.text_input("Commission Amt", opt['comm_amt'], key=f"comm_amt_{i}")
+        opt['ti']                = st.text_input("TI Allowance/SF (opt)", opt['ti'], key=f"ti_{i}")
+        opt['comm_type']         = st.selectbox(
+            "Commission Type (opt)", ["None","Percentage","Dollar"],
+            index=["None","Percentage","Dollar"].index(opt['comm_type']),
+            key=f"comm_type_{i}"
+        )
+        opt['comm_amt']          = st.text_input("Commission Amt", opt['comm_amt'], key=f"comm_amt_{i}")
 
         if st.button("Calculate", key=f"calc_{i}"):
             try:
                 df, results = compute(opt)
                 st.dataframe(df, use_container_width=True)
-                for label, (value, formula) in results.items():
-                    st.markdown(f"**{label}** {value}")
-                    if formula:
-                        st.markdown(f"<span style='color:#666'>{formula}</span>", unsafe_allow_html=True)
+                for lbl, (val, fmt) in results.items():
+                    st.markdown(f"**{lbl}** {val}")
+                    if fmt:
+                        st.markdown(f"<span style='color:#666'>{fmt}</span>", unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: {e}")
+
